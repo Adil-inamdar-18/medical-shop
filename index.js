@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const connectDb = require("./config/db");
 const customerRoutes = require("./routes/customerRoutes");
+const orderRoutes = require("./routes/orderRoutes");
 
 const app = express();
 const port = process.env.PORT;
@@ -13,6 +14,8 @@ app.use(express.json());
 
 // routes
 app.use("/api/customers", customerRoutes);
+app.use("/api/orders", orderRoutes);
+
 // database
 connectDb();
 
