@@ -117,6 +117,77 @@ const updateMedicine = async (req, res) => {
   }
 };
 
+// Update Medicine Stock (manual, admin only)
+// Body: { stock: 120 }   -> set stock to an exact value
+//   or  { change: -5 }   -> add / remove a number of units
+const updateMedicineStock = async (req, res) => {
+  try {
+    const { stock, change } = req.body;
+
+    let medicine;
+
+    if (stock !== undefined) {
+      if (!Number.isInteger(stock) || stock < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Stock must be a whole number of 0 or more",
+        });
+      }
+
+      medicine = await Medicine.findByIdAndUpdate(
+        req.params.id,
+        { stock },
+        { new: true, runValidators: true },
+      );
+    } else if (change !== undefined) {
+      if (!Number.isInteger(change) || change === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Change must be a non-zero whole number",
+        });
+      }
+
+      // Atomic update that refuses to take stock below zero
+      medicine = await Medicine.findOneAndUpdate(
+        { _id: req.params.id, stock: { $gte: -change } },
+        { $inc: { stock: change } },
+        { new: true },
+      );
+
+      if (!medicine && (await Medicine.exists({ _id: req.params.id }))) {
+        return res.status(400).json({
+          success: false,
+          message: "Stock cannot go below zero",
+        });
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Send either stock or change",
+      });
+    }
+
+    if (!medicine) {
+      return res.status(404).json({
+        success: false,
+        message: "Medicine not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Stock updated successfully",
+      data: medicine,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update stock",
+      error: error.message,
+    });
+  }
+};
+
 // Delete Medicine
 const deleteMedicine = async (req, res) => {
   try {
@@ -147,5 +218,6 @@ module.exports = {
   getMedicines,
   getMedicineById,
   updateMedicine,
+  updateMedicineStock,
   deleteMedicine,
 };
