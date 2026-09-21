@@ -1,15 +1,30 @@
 const Order = require("../models/orderModel");
 
+// Builds the next order number, e.g. ORD-2026-001
+const generateOrderNumber = async () => {
+  const year = new Date().getFullYear();
+  const prefix = `ORD-${year}-`;
+  const count = await Order.countDocuments({
+    order_number: new RegExp(`^${prefix}`),
+  });
+
+  return `${prefix}${String(count + 1).padStart(3, "0")}`;
+};
+
 // Create Order
+//
+// NOTE: Medicine stock is intentionally NOT reduced here. Stock is managed
+// manually by the admin (Admin Panel -> Medicine Inventory).
 const createOrder = async (req, res) => {
   try {
-    const { order_number, customer_id, items, status, notes } = req.body;
+    const { customer_id, items, status, notes } = req.body;
+    let { order_number } = req.body;
 
     // Basic validation
-    if (!order_number || !customer_id || !items || items.length === 0) {
+    if (!customer_id || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Order number, customer ID and items are required",
+        message: "Customer ID and items are required",
       });
     }
 
@@ -18,14 +33,33 @@ const createOrder = async (req, res) => {
       return total + item.quantity * item.price;
     }, 0);
 
-    const order = await Order.create({
-      order_number,
-      customer_id,
-      items,
-      total_amount,
-      status,
-      notes,
-    });
+    // Auto-generate the order number when the client does not send one.
+    // Retry a few times in case two orders are created at the same moment.
+    const autoNumber = !order_number;
+    let order;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (autoNumber) {
+        order_number = await generateOrderNumber();
+      }
+
+      try {
+        order = await Order.create({
+          order_number,
+          customer_id,
+          items,
+          total_amount,
+          status,
+          notes,
+        });
+        break;
+      } catch (error) {
+        const duplicate = error.code === 11000;
+        if (!(duplicate && autoNumber && attempt < 4)) {
+          throw error;
+        }
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -33,7 +67,7 @@ const createOrder = async (req, res) => {
       data: order,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(error.name === "ValidationError" ? 400 : 500).json({
       success: false,
       message: "Failed to create order",
       error: error.message,
@@ -90,7 +124,7 @@ const getOrderById = async (req, res) => {
   }
 };
 
-// Update Order
+// Update Order (status / items / notes only - stock is never touched)
 const updateOrder = async (req, res) => {
   try {
     const { items, status, notes } = req.body;
@@ -141,7 +175,7 @@ const updateOrder = async (req, res) => {
       data: order,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(error.name === "ValidationError" ? 400 : 500).json({
       success: false,
       message: "Failed to update order",
       error: error.message,

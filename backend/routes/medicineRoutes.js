@@ -5,6 +5,7 @@ const {
   getMedicines,
   getMedicineById,
   updateMedicine,
+  updateMedicineStock,
   deleteMedicine,
 } = require("../controllers/medicineController");
 
@@ -21,6 +22,9 @@ router.get("/:id", getMedicineById);
 
 // Update Medicine
 router.put("/:id", updateMedicine);
+
+// Update Medicine Stock (manual, admin)
+router.patch("/:id/stock", updateMedicineStock);
 
 // Delete Medicine
 router.delete("/:id", deleteMedicine);
