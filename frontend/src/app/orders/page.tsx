@@ -34,8 +34,7 @@ export default function OrdersPage() {
   const { user } = useAuth();
   const { data, error, loading, reload } = useFetch(getOrders);
 
-  // Admins manage orders (status/delete) from the Admin Panel; only
-  // customers/users place new orders from this page.
+  
   const canCreateOrder = user?.role !== "admin";
 
   const [search, setSearch] = useState("");
