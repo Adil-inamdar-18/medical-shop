@@ -57,8 +57,11 @@ export default function AdminPage() {
   }, [authLoading, user, router]);
 
   const [tab, setTab] = useState<TabId>("medicines");
-  const { data: health, error: healthError, loading: healthLoading } =
-    useFetch(getHealth);
+  const {
+    data: health,
+    error: healthError,
+    loading: healthLoading,
+  } = useFetch(getHealth);
 
   if (authLoading || (user && user.role !== "admin")) {
     return (
@@ -68,13 +71,20 @@ export default function AdminPage() {
     );
   }
 
-  const dbStatus = healthLoading && !health
-    ? { label: "Checking...", className: "bg-slate-100 text-slate-500" }
-    : healthError || !health
-      ? { label: "Server offline", className: "bg-red-50 text-red-700" }
-      : health.database === "connected"
-        ? { label: "Database connected", className: "bg-emerald-50 text-emerald-700" }
-        : { label: `Database ${health.database}`, className: "bg-amber-50 text-amber-700" };
+  const dbStatus =
+    healthLoading && !health
+      ? { label: "Checking...", className: "bg-slate-100 text-slate-500" }
+      : healthError || !health
+        ? { label: "Server offline", className: "bg-red-50 text-red-700" }
+        : health.database === "connected"
+          ? {
+              label: "Database connected",
+              className: "bg-emerald-50 text-emerald-700",
+            }
+          : {
+              label: `Database ${health.database}`,
+              className: "bg-amber-50 text-amber-700",
+            };
 
   return (
     <DashboardLayout>
@@ -140,7 +150,7 @@ export default function AdminPage() {
             ))}
           </div>
 
-          {tab === "medicines" && <MedicinesPanel />}
+          {tab === "medicines" && <MedicinesPanel showAddButton />}
           {tab === "orders" && <OrdersPanel />}
           {tab === "customers" && <CustomersPanel />}
         </div>
