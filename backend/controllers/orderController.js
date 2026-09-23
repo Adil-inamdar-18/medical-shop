@@ -1,4 +1,5 @@
 const Order = require("../models/orderModel");
+const Medicine = require("../models/medicineModel");
 
 // Fixed GST percentage
 const FIXED_GST_PERCENTAGE = 12;
@@ -194,7 +195,7 @@ const createOrder = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Order created successfully",
-      data: order,
+      data: populatedOrder,
     });
   } catch (error) {
     return res.status(error.name === "ValidationError" ? 400 : 500).json({
@@ -354,12 +355,17 @@ const updateOrder = async (req, res) => {
       updateData.notes = notes;
     }
 
-    const order = await Order.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
-      runValidators: true,
-    })
-      .populate("customer_id")
-      .populate("items.medicine_id");
+    const order =
+      await Order.findByIdAndUpdate(
+        req.params.id,
+        updateData,
+        {
+          new: true,
+          runValidators: true,
+        },
+      )
+        .populate("customer_id")
+        .populate("items.medicine_id");
 
     return res.status(200).json({
       success: true,
@@ -375,10 +381,14 @@ const updateOrder = async (req, res) => {
   }
 };
 
+// =====================================================
 // Delete Order
+// =====================================================
+
 const deleteOrder = async (req, res) => {
   try {
-    const order = await Order.findByIdAndDelete(req.params.id);
+    const order =
+      await Order.findByIdAndDelete(req.params.id);
 
     if (!order) {
       return res.status(404).json({
@@ -399,6 +409,10 @@ const deleteOrder = async (req, res) => {
     });
   }
 };
+
+// =====================================================
+// Export
+// =====================================================
 
 module.exports = {
   createOrder,
