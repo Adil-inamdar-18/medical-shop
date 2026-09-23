@@ -43,17 +43,63 @@ const orderSchema = new mongoose.Schema(
       },
     ],
 
+    // Amount before GST
+    subtotal: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    // GST percentage
+    gst_percentage: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 100,
+      default: 0,
+    },
+
+    // GST amount
+    gst_amount: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+
+    // Final amount including GST
     total_amount: {
       type: Number,
       required: true,
       min: 0,
     },
 
+    // Order status
     status: {
       type: String,
       enum: ["pending", "confirmed", "partial"],
       default: "pending",
-      required: true,
+    },
+
+    // Payment status
+    payment_status: {
+      type: String,
+      enum: ["pending", "confirmed", "partial"],
+      default: "pending",
+    },
+
+    // Amount already paid
+    amount_paid: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    // Remaining amount to be paid
+    remaining_amount: {
+      type: Number,
+      min: 0,
+      default: 0,
     },
 
     notes: {

@@ -1,27 +1,40 @@
 "use client";
 
 import { useState } from "react";
+
 import { AlertTriangle, Building2, Link2, Plus, Search } from "lucide-react";
 
 import DashboardLayout from "@/components/layout/DashboardLayout";
+
 import CreateOrderModal from "@/components/orders/CreateOrderModal";
+
 import {
   ErrorBanner,
   LoadingBlock,
   SuccessBanner,
 } from "@/components/ui/Feedback";
+
 import { useAuth } from "@/context/AuthContext";
+
 import { useFetch } from "@/hooks/useFetch";
+
 import { getOrders } from "@/lib/api";
+
 import {
   formatCurrency,
   formatDate,
   getOrderCustomer,
   orderStatusStyles,
 } from "@/lib/format";
+
 import type { Order, OrderStatus } from "@/types/order";
 
-const FILTERS: Array<"all" | OrderStatus> = ["all", "pending", "confirmed", "partial"];
+const FILTERS: Array<"all" | OrderStatus> = [
+  "all",
+  "pending",
+  "confirmed",
+  "partial",
+];
 
 const filterLabel: Record<"all" | OrderStatus, string> = {
   all: "All Orders",
@@ -32,21 +45,26 @@ const filterLabel: Record<"all" | OrderStatus, string> = {
 
 export default function OrdersPage() {
   const { user } = useAuth();
+
   const { data, error, loading, reload } = useFetch(getOrders);
 
-  
   const canCreateOrder = user?.role !== "admin";
 
   const [search, setSearch] = useState("");
+
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
+
   const [creating, setCreating] = useState(false);
+
   const [notice, setNotice] = useState<string | null>(null);
 
   const orders = data ?? [];
+
   const query = search.trim().toLowerCase();
 
   const filtered = orders.filter((order) => {
-    const matchesFilter = statusFilter === "all" || order.status === statusFilter;
+    const matchesFilter =
+      statusFilter === "all" || order.status === statusFilter;
 
     const customer = getOrderCustomer(order);
 
@@ -70,7 +88,9 @@ export default function OrdersPage() {
         {/* Page Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Orders</h1>
+            <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
+              Orders
+            </h1>
 
             <p className="mt-1 text-sm text-slate-500">
               Manage and track customer orders.
@@ -89,6 +109,7 @@ export default function OrdersPage() {
         </div>
 
         {notice && <SuccessBanner message={notice} />}
+
         {error && <ErrorBanner message={error} onRetry={reload} />}
 
         {/* Search */}
@@ -108,6 +129,7 @@ export default function OrdersPage() {
         <div className="flex gap-2 overflow-x-auto pb-1">
           {FILTERS.map((filter) => {
             const isActive = statusFilter === filter;
+
             const count =
               filter === "all"
                 ? orders.length
@@ -127,7 +149,9 @@ export default function OrdersPage() {
 
                 <span
                   className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs ${
-                    isActive ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-600"
+                    isActive
+                      ? "bg-blue-500 text-white"
+                      : "bg-slate-100 text-slate-600"
                   }`}
                 >
                   {count}
@@ -170,8 +194,11 @@ export default function OrdersPage() {
           onClose={() => setCreating(false)}
           onSaved={(order) => {
             setCreating(false);
+
             setNotice(`Order ${order.order_number} was created.`);
+
             window.setTimeout(() => setNotice(null), 5000);
+
             reload();
           }}
         />
@@ -186,8 +213,29 @@ export default function OrdersPage() {
 
 function OrderCard({ order }: { order: Order }) {
   const customer = getOrderCustomer(order);
+
   const firstItem = order.items[0];
-  const medicineNames = order.items.map((item) => item.medicine_name).join(", ");
+
+  const medicineNames = order.items
+    .map((item) => item.medicine_name)
+    .join(", ");
+
+  /*
+   * Amount shown in the top-right corner.
+   *
+   * Partial payment:
+   * show remaining amount.
+   *
+   * Pending / Confirmed:
+   * show total amount.
+   */
+  const displayAmount =
+    order.payment_status === "partial"
+      ? Number(order.remaining_amount ?? 0)
+      : Number(order.total_amount);
+
+  const displayAmountLabel =
+    order.payment_status === "partial" ? "Remaining" : "Total";
 
   return (
     <article
@@ -207,6 +255,7 @@ function OrderCard({ order }: { order: Order }) {
               className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium capitalize ${orderStatusStyles[order.status]}`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-current" />
+
               {order.status}
             </span>
           </div>
@@ -216,9 +265,20 @@ function OrderCard({ order }: { order: Order }) {
           </p>
         </div>
 
+        {/* Amount */}
         <div className="shrink-0 text-right">
           <div className="text-lg font-semibold text-slate-900">
-            {formatCurrency(order.total_amount)}
+            {formatCurrency(displayAmount)}
+          </div>
+
+          <div
+            className={`mt-0.5 text-[11px] font-medium ${
+              order.payment_status === "partial"
+                ? "text-orange-600"
+                : "text-slate-400"
+            }`}
+          >
+            {displayAmountLabel}
           </div>
         </div>
       </div>
@@ -244,7 +304,8 @@ function OrderCard({ order }: { order: Order }) {
       <div className="mt-4">
         <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
           <Link2 size={16} />
-          {order.items.length} item{order.items.length === 1 ? "" : "s"}
+          {order.items.length} item
+          {order.items.length === 1 ? "" : "s"}
           {firstItem && (
             <span className="font-normal text-slate-400">
               {" "}
@@ -263,6 +324,7 @@ function OrderCard({ order }: { order: Order }) {
       {order.notes && (
         <div className="mt-4 flex items-start gap-2 border-t border-slate-100 pt-4 text-[12px] text-amber-700">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+
           <span>{order.notes}</span>
         </div>
       )}

@@ -1,6 +1,11 @@
 import type { Customer } from "@/types/customer";
 import type { Medicine, MedicineInput } from "@/types/medicine";
-import type { Order, OrderInput, OrderStatus } from "@/types/order";
+import type {
+  Order,
+  OrderInput,
+  OrderStatus,
+  PaymentStatus,
+} from "@/types/order";
 import type { AuthPayload, User, UserRole } from "@/types/user";
 
 export type CustomerInput = Omit<Customer, "_id" | "createdAt" | "updatedAt">;
@@ -12,22 +17,26 @@ const API_URL = (
 export class ApiError extends Error {}
 
 // ---------- Auth token storage ----------
-// The token is kept in localStorage (read by the API client) and mirrored
-// into a plain cookie so the Next.js middleware can check it on navigation.
+
+// The token is kept in localStorage (read by the API client)
+// and mirrored into a plain cookie so the Next.js middleware
+// can check it on navigation.
 const TOKEN_KEY = "medical_shop_token";
 
 export const getToken = (): string | null =>
-  typeof window === "undefined"
-    ? null
-    : window.localStorage.getItem(TOKEN_KEY);
+  typeof window === "undefined" ? null : window.localStorage.getItem(TOKEN_KEY);
 
 export const setToken = (token: string | null) => {
   if (typeof window === "undefined") return;
 
   if (token) {
     window.localStorage.setItem(TOKEN_KEY, token);
+
     const secure = window.location.protocol === "https:" ? "; secure" : "";
-    document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax${secure}`;
+
+    document.cookie = `token=${token}; path=/; max-age=${
+      60 * 60 * 24 * 7
+    }; samesite=lax${secure}`;
   } else {
     window.localStorage.removeItem(TOKEN_KEY);
     document.cookie = "token=; path=/; max-age=0";
@@ -51,7 +60,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token
+          ? {
+              Authorization: `Bearer ${token}`,
+            }
+          : {}),
         ...options.headers,
       },
     });
@@ -62,7 +75,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   const body = (await response.json().catch(() => null)) as
-    | (ApiResponse<T> & { error?: string })
+    | (ApiResponse<T> & {
+        error?: string;
+      })
     | null;
 
   if (!response.ok || !body || body.success === false) {
@@ -82,6 +97,7 @@ const json = (method: string, payload: unknown): RequestInit => ({
 });
 
 // ---------- Customers ----------
+
 export const getCustomers = () => request<Customer[]>("/customers");
 
 export const createCustomer = (input: CustomerInput) =>
@@ -94,6 +110,7 @@ export const deleteCustomer = (id: string) =>
   request<null>(`/customers/${id}`, { method: "DELETE" });
 
 // ---------- Medicines ----------
+
 export const getMedicines = () => request<Medicine[]>("/medicines");
 
 export const createMedicine = (input: MedicineInput) =>
@@ -110,6 +127,7 @@ export const setMedicineStock = (id: string, stock: number) =>
   request<Medicine>(`/medicines/${id}/stock`, json("PATCH", { stock }));
 
 // ---------- Orders ----------
+
 export const getOrders = () => request<Order[]>("/orders");
 
 // Creating an order never changes medicine stock.
@@ -119,10 +137,26 @@ export const createOrder = (input: OrderInput) =>
 export const updateOrderStatus = (id: string, status: OrderStatus) =>
   request<Order>(`/orders/${id}`, json("PUT", { status }));
 
+// Update payment status and amount paid together.
+// The backend validates both values.
+export const updatePaymentStatus = (
+  id: string,
+  paymentStatus: PaymentStatus,
+  amountPaid: number,
+) =>
+  request<Order>(
+    `/orders/${id}`,
+    json("PUT", {
+      payment_status: paymentStatus,
+      amount_paid: amountPaid,
+    }),
+  );
+
 export const deleteOrder = (id: string) =>
   request<null>(`/orders/${id}`, { method: "DELETE" });
 
 // ---------- Auth ----------
+
 export const registerUser = (input: {
   name: string;
   email: string;
@@ -136,6 +170,7 @@ export const loginUser = (input: { email: string; password: string }) =>
 export const getCurrentUser = () => request<User>("/auth/me");
 
 // ---------- Health ----------
+
 export interface Health {
   server: string;
   database: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 import {
   EmptyBlock,
@@ -10,16 +10,38 @@ import {
   SuccessBanner,
 } from "@/components/ui/Feedback";
 import { useFetch } from "@/hooks/useFetch";
-import { deleteOrder, getOrders, updateOrderStatus } from "@/lib/api";
+
+import {
+  deleteOrder,
+  getOrders,
+  updateOrderStatus,
+  updatePaymentStatus,
+} from "@/lib/api";
+
 import {
   formatCurrency,
   formatDate,
   getOrderCustomer,
   orderStatusStyles,
 } from "@/lib/format";
-import { ORDER_STATUSES, type Order, type OrderStatus } from "@/types/order";
 
-export default function OrdersPanel() {
+import {
+  ORDER_STATUSES,
+  PAYMENT_STATUSES,
+  type Order,
+  type OrderStatus,
+  type PaymentStatus,
+} from "@/types/order";
+
+interface OrdersPanelProps {
+  isAdmin?: boolean;
+  onCreateOrder?: () => void;
+}
+
+export default function OrdersPanel({
+  isAdmin = false,
+  onCreateOrder,
+}: OrdersPanelProps) {
   const { data, error, loading, reload } = useFetch(getOrders);
 
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -30,7 +52,10 @@ export default function OrdersPanel() {
 
   const showNotice = (message: string) => {
     setNotice(message);
-    window.setTimeout(() => setNotice(null), 4000);
+
+    window.setTimeout(() => {
+      setNotice(null);
+    }, 4000);
   };
 
   const changeStatus = async (order: Order, status: OrderStatus) => {
@@ -39,28 +64,100 @@ export default function OrdersPanel() {
 
     try {
       await updateOrderStatus(order._id, status);
+
       showNotice(`${order.order_number} marked as ${status}.`);
+
       reload();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to update order");
+      setActionError(
+        err instanceof Error ? err.message : "Failed to update order",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const changePaymentStatus = async (
+    order: Order,
+    paymentStatus: PaymentStatus,
+  ) => {
+    let amountPaid = Number(order.amount_paid ?? 0);
+
+    if (paymentStatus === "pending") {
+      amountPaid = 0;
+    }
+
+    if (paymentStatus === "confirmed") {
+      amountPaid = Number(order.total_amount);
+    }
+
+    if (paymentStatus === "partial") {
+      const enteredAmount = window.prompt(
+        `Enter amount paid for ${order.order_number}:`,
+        String(order.amount_paid ?? ""),
+      );
+
+      if (enteredAmount === null) {
+        return;
+      }
+
+      amountPaid = Number(enteredAmount);
+
+      if (
+        !Number.isFinite(amountPaid) ||
+        amountPaid <= 0 ||
+        amountPaid >= Number(order.total_amount)
+      ) {
+        setActionError(
+          `Partial payment must be greater than 0 and less than ${formatCurrency(
+            order.total_amount,
+          )}.`,
+        );
+
+        return;
+      }
+    }
+
+    setBusyId(order._id);
+    setActionError(null);
+
+    try {
+      await updatePaymentStatus(order._id, paymentStatus, amountPaid);
+
+      showNotice(`${order.order_number} payment marked as ${paymentStatus}.`);
+
+      reload();
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to update payment status",
+      );
     } finally {
       setBusyId(null);
     }
   };
 
   const remove = async (order: Order) => {
-    if (!window.confirm(`Delete order ${order.order_number}? This cannot be undone.`))
+    if (
+      !window.confirm(
+        `Delete order ${order.order_number}? This cannot be undone.`,
+      )
+    ) {
       return;
+    }
 
     setBusyId(order._id);
     setActionError(null);
 
     try {
       await deleteOrder(order._id);
+
       showNotice(`${order.order_number} was deleted.`);
+
       reload();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to delete order");
+      setActionError(
+        err instanceof Error ? err.message : "Failed to delete order",
+      );
     } finally {
       setBusyId(null);
     }
@@ -69,8 +166,24 @@ export default function OrdersPanel() {
   return (
     <div className="space-y-4">
       {notice && <SuccessBanner message={notice} />}
+
       {error && <ErrorBanner message={error} onRetry={reload} />}
+
       {actionError && <ErrorBanner message={actionError} />}
+
+      {/* Create Order - User only */}
+      {!isAdmin && onCreateOrder && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onCreateOrder}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4" />
+            Create Order
+          </button>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         {loading && orders.length === 0 ? (
@@ -79,19 +192,25 @@ export default function OrdersPanel() {
           <EmptyBlock message="No orders yet." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
+            <table className="w-full min-w-[1100px]">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  {["Order", "Customer", "Items ordered", "Amount", "Status", ""].map(
-                    (heading, index) => (
-                      <th
-                        key={index}
-                        className="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500"
-                      >
-                        {heading}
-                      </th>
-                    ),
-                  )}
+                  {[
+                    "Order",
+                    "Customer",
+                    "Items ordered",
+                    "Amount",
+                    "Status",
+                    "Payment",
+                    "",
+                  ].map((heading, index) => (
+                    <th
+                      key={index}
+                      className="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500"
+                    >
+                      {heading}
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
@@ -104,6 +223,7 @@ export default function OrdersPanel() {
                       key={order._id}
                       className="border-b border-slate-100 align-top last:border-0 hover:bg-slate-50/50"
                     >
+                      {/* Order */}
                       <td className="px-6 py-4">
                         <p className="font-semibold text-slate-800">
                           {order.order_number}
@@ -114,6 +234,7 @@ export default function OrdersPanel() {
                         </p>
                       </td>
 
+                      {/* Customer */}
                       <td className="px-6 py-4">
                         <p className="text-sm font-medium text-slate-800">
                           {customer?.store_name ?? "Deleted customer"}
@@ -124,6 +245,7 @@ export default function OrdersPanel() {
                         </p>
                       </td>
 
+                      {/* Items */}
                       <td className="px-6 py-4">
                         <ul className="space-y-1 text-sm text-slate-600">
                           {order.items.map((item, index) => (
@@ -137,16 +259,46 @@ export default function OrdersPanel() {
                         </ul>
                       </td>
 
-                      <td className="px-6 py-4 text-sm font-bold text-slate-800">
-                        {formatCurrency(order.total_amount)}
+                      {/* Amount */}
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-slate-800">
+                            Total: {formatCurrency(order.total_amount)}
+                          </p>
+
+                          <p className="text-xs text-slate-500">
+                            Paid: {formatCurrency(order.amount_paid ?? 0)}
+                          </p>
+
+                          <p
+                            className={`text-xs font-medium ${
+                              Number(order.remaining_amount ?? 0) > 0
+                                ? "text-orange-600"
+                                : "text-green-600"
+                            }`}
+                          >
+                            Remaining:{" "}
+                            {formatCurrency(order.remaining_amount ?? 0)}
+                          </p>
+
+                          {order.gst_amount !== undefined && (
+                            <p className="text-xs text-slate-400">
+                              GST: {formatCurrency(order.gst_amount)}
+                            </p>
+                          )}
+                        </div>
                       </td>
 
+                      {/* Order Status */}
                       <td className="px-6 py-4">
                         <select
                           value={order.status}
                           disabled={busyId === order._id}
                           onChange={(event) =>
-                            changeStatus(order, event.target.value as OrderStatus)
+                            changeStatus(
+                              order,
+                              event.target.value as OrderStatus,
+                            )
                           }
                           aria-label={`Status of ${order.order_number}`}
                           className={`rounded-full border-0 px-3 py-1.5 text-xs font-medium capitalize outline-none focus:ring-2 focus:ring-blue-200 disabled:opacity-60 ${orderStatusStyles[order.status]}`}
@@ -159,6 +311,29 @@ export default function OrdersPanel() {
                         </select>
                       </td>
 
+                      {/* Payment Status */}
+                      <td className="px-6 py-4">
+                        <select
+                          value={order.payment_status}
+                          disabled={busyId === order._id}
+                          onChange={(event) =>
+                            changePaymentStatus(
+                              order,
+                              event.target.value as PaymentStatus,
+                            )
+                          }
+                          aria-label={`Payment status of ${order.order_number}`}
+                          className="rounded-full border-0 bg-slate-100 px-3 py-1.5 text-xs font-medium capitalize text-slate-700 outline-none focus:ring-2 focus:ring-blue-200 disabled:opacity-60"
+                        >
+                          {PAYMENT_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* Delete */}
                       <td className="px-6 py-4">
                         <div className="flex justify-end">
                           <button
